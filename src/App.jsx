@@ -39,8 +39,10 @@ function App() {
     try {
       const res = await api.post('/transactions', transaction);
       setTransactions(prev => [res.data, ...prev]);
+      return res.data;
     } catch (error) {
-      console.error("Error adding transaction:", error);
+      console.error("Error adding transaction:", error.response?.data || error);
+      throw new Error(error.response?.data?.details || error.response?.data?.error || "Failed to add transaction");
     }
   }
 

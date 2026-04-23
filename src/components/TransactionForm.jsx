@@ -24,7 +24,7 @@ export default function TransactionForm({ onAdd, onUpdate, editingTransaction, o
         }
     }, [editingTransaction])
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault()
         if (!formData.description || !formData.amount) {
             setError('Please fill all fields')
@@ -40,18 +40,21 @@ export default function TransactionForm({ onAdd, onUpdate, editingTransaction, o
             amount: Number(formData.amount),
         }
 
-        if (editingTransaction) {
-            onUpdate(transactionData)
-        } else {
-            onAdd({
-                id: crypto.randomUUID(),
-                ...transactionData,
-                date: new Date().toISOString()
-            })
+        try {
+            if (editingTransaction) {
+                await onUpdate(transactionData)
+            } else {
+                await onAdd({
+                    id: crypto.randomUUID(),
+                    ...transactionData,
+                    date: new Date().toISOString()
+                })
+            }
+            setFormData(defaultForm)
+            setError('')
+        } catch (err) {
+            setError(err.message || "Something went wrong")
         }
-
-        setFormData(defaultForm)
-        setError('')
     }
 
     const handleCancel = () => {

@@ -18,20 +18,26 @@ app.use('/api/transactions', transactionRoutes);
 app.use('/api/budgets', budgetRoutes);
 app.use('/api/goals', goalRoutes);
 
-// Health check endpoint
-app.get('/api/health', (req, res) => {
-  res.status(200).json({ status: 'ok' });
-});
-
 // Database Connection
 let isConnected = false;
+let connectionError = null;
+
 const connectDB = async () => {
   if (isConnected) return;
+  if (!process.env.MONGODB_URI) {
+    connectionError = "MONGODB_URI is not defined in Environment Variables";
+    console.error(connectionError);
+    return;
+  }
+  
   try {
-    await mongoose.connect(process.env.MONGODB_URI);
+    // serverSelectionTimeoutMS makes it fail fast if IP is not whitelisted
+    await mongoose.connect(process.env.MONGODB_URI, { serverSelectionTimeoutMS: 5000 });
     isConnected = true;
+    connectionError = null;
     console.log('Connected to MongoDB Atlas');
   } catch (err) {
+    connectionError = err.message;
     console.error('Failed to connect to MongoDB', err);
   }
 };
@@ -39,7 +45,21 @@ const connectDB = async () => {
 // Connect before handling requests in serverless environments
 app.use(async (req, res, next) => {
   await connectDB();
+  if (!isConnected) {
+    return res.status(500).json({ 
+      error: 'Database connection failed', 
+      details: connectionError,
+      hint: !process.env.MONGODB_URI 
+        ? "Please add MONGODB_URI to Vercel Environment Variables." 
+        : "Check if your MongoDB Atlas Network Access allows Vercel (add 0.0.0.0/0)"
+    });
+  }
   next();
+});
+
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+  res.status(200).json({ status: 'ok', connected: isConnected });
 });
 
 // For local development
