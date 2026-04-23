@@ -1,4 +1,5 @@
-require('dotenv').config();
+// Load .env from the server directory regardless of where Node is invoked from
+require('dotenv').config({ path: require('path').join(__dirname, '.env') });
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -32,7 +33,7 @@ const connectDB = async () => {
   
   try {
     // serverSelectionTimeoutMS makes it fail fast if IP is not whitelisted
-    await mongoose.connect(process.env.MONGODB_URI, { serverSelectionTimeoutMS: 5000 });
+    await mongoose.connect(process.env.MONGODB_URI, { serverSelectionTimeoutMS: 10000 });
     isConnected = true;
     connectionError = null;
     console.log('Connected to MongoDB Atlas');
