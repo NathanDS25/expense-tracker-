@@ -9,31 +9,94 @@ import SavingsGoals from './components/SavingsGoals'
 import Recommendations from './components/Recommendations'
 import clsx from 'clsx'
 import { motion } from 'framer-motion'
+import api from './api'
 
 function App() {
-  const [transactions, setTransactions] = useState(() => {
-    const saved = localStorage.getItem('transactions')
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved)
-        return Array.isArray(parsed) ? parsed.filter(Boolean) : []
-      } catch (e) {
-        return []
-      }
-    }
-    return []
-  })
+  const [transactions, setTransactions] = useState([])
+  const [budgets, setBudgets] = useState({ 'Food': 500, 'Transport': 200, 'Shopping': 300 })
+  const [savingsGoals, setSavingsGoals] = useState([])
 
+  // Fetch initial data
   useEffect(() => {
-    localStorage.setItem('transactions', JSON.stringify(transactions))
-  }, [transactions])
+    const fetchData = async () => {
+      try {
+        const [txRes, budgetsRes, goalsRes] = await Promise.all([
+          api.get('/transactions'),
+          api.get('/budgets'),
+          api.get('/goals')
+        ]);
+        setTransactions(txRes.data);
+        setBudgets(budgetsRes.data);
+        setSavingsGoals(goalsRes.data);
+      } catch (error) {
+        console.error("Error fetching data:", error);
+      }
+    };
+    fetchData();
+  }, []);
 
-  const addTransaction = (transaction) => {
-    setTransactions(prev => [transaction, ...prev])
+  const addTransaction = async (transaction) => {
+    try {
+      const res = await api.post('/transactions', transaction);
+      setTransactions(prev => [res.data, ...prev]);
+    } catch (error) {
+      console.error("Error adding transaction:", error);
+    }
   }
 
-  const deleteTransaction = (id) => {
-    setTransactions(prev => prev.filter(t => t.id !== id))
+  const deleteTransaction = async (id) => {
+    try {
+      await api.delete(`/transactions/${id}`);
+      setTransactions(prev => prev.filter(t => t.id !== id));
+    } catch (error) {
+      console.error("Error deleting transaction:", error);
+    }
+  }
+
+  const updateTransaction = async (updated) => {
+    try {
+      const res = await api.put(`/transactions/${updated.id}`, updated);
+      setTransactions(prev => prev.map(t => t.id === updated.id ? res.data : t));
+      setEditingId(null);
+    } catch (error) {
+      console.error("Error updating transaction:", error);
+    }
+  }
+
+  const addSavingsGoal = async (goal) => {
+    try {
+      const res = await api.post('/goals', goal);
+      setSavingsGoals(prev => [...prev, res.data]);
+    } catch (error) {
+      console.error("Error adding goal:", error);
+    }
+  }
+
+  const updateSavingsGoal = async (id, currentAmount) => {
+    try {
+      const res = await api.put(`/goals/${id}`, { currentAmount });
+      setSavingsGoals(prev => prev.map(g => g.id === id ? res.data : g));
+    } catch (error) {
+      console.error("Error updating goal:", error);
+    }
+  }
+
+  const deleteSavingsGoal = async (id) => {
+    try {
+      await api.delete(`/goals/${id}`);
+      setSavingsGoals(prev => prev.filter(g => g.id !== id));
+    } catch (error) {
+      console.error("Error deleting goal:", error);
+    }
+  }
+
+  const handleUpdateBudgets = async (newBudgets) => {
+    try {
+      await api.post('/budgets/update', newBudgets);
+      setBudgets(newBudgets);
+    } catch (error) {
+      console.error("Error updating budgets:", error);
+    }
   }
 
   const exportCSV = () => {
@@ -55,14 +118,6 @@ function App() {
 
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('theme') === 'dark')
   const [currency, setCurrency] = useState(() => localStorage.getItem('currency') || '$')
-  const [budgets, setBudgets] = useState(() => {
-    const saved = localStorage.getItem('budgets')
-    return saved ? JSON.parse(saved) : { 'Food': 500, 'Transport': 200, 'Shopping': 300 }
-  })
-  const [savingsGoals, setSavingsGoals] = useState(() => {
-    const saved = localStorage.getItem('savingsGoals')
-    return saved ? JSON.parse(saved) : []
-  })
 
   useEffect(() => {
     if (darkMode) {
@@ -78,32 +133,7 @@ function App() {
     localStorage.setItem('currency', currency)
   }, [currency])
 
-  useEffect(() => {
-    localStorage.setItem('budgets', JSON.stringify(budgets))
-  }, [budgets])
-
-  useEffect(() => {
-    localStorage.setItem('savingsGoals', JSON.stringify(savingsGoals))
-  }, [savingsGoals])
-
   const editingTransaction = transactions.find(t => t.id === editingId) || null
-
-  const updateTransaction = (updated) => {
-    setTransactions(prev => prev.map(t => t.id === updated.id ? updated : t))
-    setEditingId(null)
-  }
-
-  const addSavingsGoal = (goal) => {
-    setSavingsGoals(prev => [...prev, goal])
-  }
-
-  const updateSavingsGoal = (id, currentAmount) => {
-    setSavingsGoals(prev => prev.map(g => g.id === id ? { ...g, currentAmount } : g))
-  }
-
-  const deleteSavingsGoal = (id) => {
-    setSavingsGoals(prev => prev.filter(g => g.id !== id))
-  }
 
   const filteredTransactions = transactions.filter(t => {
     const matchesCategory = filterCategory === 'All' || t.category === filterCategory
@@ -193,7 +223,7 @@ function App() {
             <SpendingBudgets
               transactions={transactions}
               budgets={budgets}
-              setBudgets={setBudgets}
+              setBudgets={handleUpdateBudgets}
               currency={currency}
             />
             <Recommendations transactions={transactions} />
